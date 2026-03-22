@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小清新數位助理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #fdfcf0; }
+        .card { border-radius: 20px; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        .btn-grad { background: linear-gradient(135deg, #ffcfdf 0%, #b0f3f1 100%); }
+        .checkbox-custom:checked + label { text-decoration: line-through; color: #9ca3af; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-md mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-700">🌸 數位小助理</h1>
+            <p id="today-date" class="text-gray-500 mt-2 font-medium"></p>
+        </header>
+
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-bold text-gray-600">我的分類</span>
+                <button onclick="addCategory()" class="text-xs text-blue-400 font-bold">+ 新增</button>
+            </div>
+            <div id="category-tags" class="flex flex-wrap gap-2">
+                </div>
+        </div>
+
+        <div class="bg-white p-4 card shadow-sm mb-6 border border-pink-100">
+            <input id="todo-input" type="text" placeholder="想做點什麼呢？" class="w-full p-2 mb-3 outline-none border-b border-gray-100 focus:border-pink-300">
+            <div class="flex justify-between items-center">
+                <select id="todo-category" class="text-sm bg-gray-50 p-1 rounded border-none text-gray-600 outline-none">
+                    </select>
+                <button onclick="addTask()" class="btn-grad px-6 py-2 rounded-full text-gray-700 font-bold text-sm shadow-md">添加任務</button>
+            </div>
+        </div>
+
+        <div id="todo-list" class="space-y-3">
+            </div>
+
+        <p class="mt-8 text-center text-xs text-gray-400 italic">
+            * 昨天的未完成事項已自動搬移至今天囉！
+        </p>
+    </div>
+
+    <script>
+        // 1. 初始化資料
+        let categories = JSON.parse(localStorage.getItem('categories')) || ["工作", "學習", "生活", "興趣"];
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // 2. 自動遞延邏輯：啟動時檢查
+        function handleDeferredTasks() {
+            let hasChanges = false;
+            tasks = tasks.map(task => {
+                if (!task.completed && task.date < today) {
+                    task.date = today;
+                    task.isDeferred = true;
+                    hasChanges = true;
+                }
+                return task;
+            });
+            if (hasChanges) saveAndRender();
+        }
+
+        // 3. 渲染介面
+        function render() {
+            // 更新日期顯示
+            document.getElementById('today-date').innerText = new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' });
+
+            // 渲染分類標籤
+            const catTags = document.getElementById('category-tags');
+            const catSelect = document.getElementById('todo-category');
+            catTags.innerHTML = '';
+            catSelect.innerHTML = '';
+            categories.forEach(cat => {
+                catTags.innerHTML += `<span class="px-3 py-1 bg-white border border-pink-200 rounded-full text-xs text-pink-500 font-medium">${cat}</span>`;
+                catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+
+            // 渲染任務清單 (僅顯示今天的)
+            const todoList = document.getElementById('todo-list');
+            todoList.innerHTML = '';
+            const todayTasks = tasks.filter(t => t.date === today);
+
+            todayTasks.forEach(task => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 card shadow-sm flex items-center justify-between border-l-4 " + 
+                                (task.isDeferred ? "border-orange-300" : "border-pink-300");
+                
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})" class="checkbox-custom w-5 h-5 accent-pink-400">
+                        <label class="text-gray-700 ${task.completed ? 'line-through text-gray-400' : ''}">
+                            ${task.text}
+                            ${task.isDeferred ? '<span class="text-[10px] bg-orange-100 text-orange-500 px-1 rounded ml-1">遞延</span>' : ''}
+                            <div class="text-[10px] text-gray-400">${task.category}</div>
+                        </label>
+                    </div>
+                    <button onclick="addToCalendar('${task.text}')" class="text-lg grayscale hover:grayscale-0">📅</button>
+                `;
+                todoList.appendChild(card);
+            });
+        }
+
+        // 4. 功能函數
+        function addTask() {
+            const input = document.getElementById('todo-input');
+            const cat = document.getElementById('todo-category');
+            if (!input.value) return;
+
+            const newTask = {
+                id: Date.now(),
+                text: input.value,
+                category: cat.value,
+                date: today,
+                completed: false,
+                isDeferred: false
+            };
+            tasks.push(newTask);
+            input.value = '';
+            saveAndRender();
+        }
+
+        function toggleTask(id) {
+            tasks = tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t);
+            saveAndRender();
+        }
+
+        function addCategory() {
+            const name = prompt("輸入新分類名稱：");
+            if (name && !categories.includes(name)) {
+                categories.push(name);
+                saveAndRender();
+            }
+        }
+
+        // 模擬寫入行事曆（產生 .ics 檔案供下載/開啟）
+        function addToCalendar(title) {
+            const date = today.replace(/-/g, '');
+            const icsData = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${title}\nDTSTART:${date}T090000\nDTEND:${date}T100000\nEND:VEVENT\nEND:VCALENDAR`;
+            const blob = new Blob([icsData], { type: 'text/calendar' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title}.ics`;
+            a.click();
+            alert("已產生行事曆邀請檔案，點擊即可加入手機/電腦行事曆！");
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            localStorage.setItem('categories', JSON.stringify(categories));
+            render();
+        }
+
+        // 初始化啟動
+        handleDeferredTasks();
+        render();
+    </script>
+</body>
+</html>
